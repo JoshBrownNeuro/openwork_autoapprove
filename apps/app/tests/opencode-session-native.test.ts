@@ -1177,7 +1177,7 @@ describe("native Stop and follow-up handoff", () => {
       expect(events.indexOf("abort-command-child")).toBeGreaterThan(events.indexOf("abort-admitted-command"));
       expect(sessionHasPendingSubmission(endpoint.opencodeBaseUrl, root.id)).toBe(false);
       expect(sessionNeedsStop(endpoint.opencodeBaseUrl, root.id)).toBe(false);
-      expect(requests.filter(request => new URL(request.url).pathname.endsWith("/command"))).toHaveLength(1);
+      expect(requests.filter(request => request.method === "POST" && new URL(request.url).pathname.endsWith("/command"))).toHaveLength(1);
       const stoppedIds = requests.flatMap(request => new URL(request.url).pathname.match(/\/session\/([^/]+)\/abort$/)?.[1] ?? []);
       expect(new Set(stoppedIds)).toEqual(new Set([root.id, child.id]));
       expect(requests.some(request => new URL(request.url).pathname.endsWith("/prompt_async"))).toBe(false);
