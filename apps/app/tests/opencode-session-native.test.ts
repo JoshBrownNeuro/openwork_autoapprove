@@ -3,7 +3,7 @@ import { focusManager } from "@tanstack/react-query";
 import type { Message, Part, Session, SessionStatus, Todo } from "@opencode-ai/sdk/v2/client";
 
 import { createClient, createPromptMessageID, hasAcceptedPromptMessage, PromptAdmissionUnknownError, promptAdmissionFailure, readPromptAdmission, unwrap, type FieldsResult } from "../src/app/lib/opencode";
-import { holdSessionWork, interruptSessionTurn, sendSessionCommand, sessionHasPendingSubmission, sessionNeedsStop, sessionWorkHeld, submitAfterInterruption, submitImmediateSessionTurn } from "../src/app/lib/opencode-interruption";
+import { holdSessionWork, interruptSessionTurn, localCommandHook, sendSessionCommand, sessionHasPendingSubmission, sessionNeedsStop, sessionWorkHeld, submitAfterInterruption, submitImmediateSessionTurn } from "../src/app/lib/opencode-interruption";
 import { createClientV2 } from "../src/app/lib/opencode-v2-adapter";
 import { resolveForkBoundaryId } from "../src/react-app/domains/session/sync/transcript-reconcile";
 import {
@@ -1015,6 +1015,32 @@ describe("native OpenCode session operations", () => {
 });
 
 describe("native Stop and follow-up handoff", () => {
+  test("local slash-command hooks bypass the agent command endpoint", async () => {
+    const hook = "http://127.0.0.1:43123/token";
+    expect(localCommandHook(`@openwork-local-command ${hook}\nfallback`)).toEqual(new URL(hook));
+    expect(localCommandHook("@openwork-local-command https://example.com/hook")).toBeNull();
+    await withSessionFetch(async request => {
+      const url = new URL(request.url);
+      if (request.method === "GET" && url.pathname.endsWith("/command")) {
+        return Response.json([{ name: "local", template: `@openwork-local-command ${hook}` }]);
+      }
+      if (url.href === hook) {
+        expect(request.method).toBe("POST");
+        expect(await request.json()).toEqual({ sessionID: "ses_local", command: "local", arguments: "on" });
+        return Response.json({ enabled: true });
+      }
+      throw new Error(`Unexpected request: ${request.method} ${url.pathname}`);
+    }, async requests => {
+      const client = createClient(endpoint.opencodeBaseUrl, "/workspace/local");
+      const response = await sendSessionCommand(endpoint.opencodeBaseUrl, client, {
+        sessionID: "ses_local", command: "local", arguments: "on",
+      });
+      expect(response.error).toBeUndefined();
+      expect(sessionHasPendingSubmission(endpoint.opencodeBaseUrl, "ses_local")).toBe(false);
+      expect(requests.filter(request => request.method === "POST" && new URL(request.url).pathname.endsWith("/session/ses_local/command"))).toHaveLength(0);
+    });
+  });
+
   test("archive holds share native submission coordination without blocking another runtime", async () => {
     const baseUrl = endpoint.opencodeBaseUrl;
     const id = "ses_archive_hold";
