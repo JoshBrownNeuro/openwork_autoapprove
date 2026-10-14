@@ -153,7 +153,7 @@ async function runLocalSessionCommand(hook: URL, parameters: Parameters<Client["
  * Keep their exact admission in the shared Stop coordinator, even after HTTP settles. */
 export async function sendSessionCommand(baseUrl: string, client: Client, parameters: Parameters<Client["session"]["command"]>[0]) {
   const messageID = parameters.messageID ?? createPromptMessageID();
-  const hook = await findLocalSessionCommand(client, parameters.command);
+  const hook = parameters.command ? await findLocalSessionCommand(client, parameters.command) : null;
   return submitAfterInterruption(baseUrl, parameters.sessionID, async () => {
     if (hook) return runLocalSessionCommand(hook, parameters);
     const result = await client.session.command({ ...parameters, messageID }).catch((cause: unknown) => {
