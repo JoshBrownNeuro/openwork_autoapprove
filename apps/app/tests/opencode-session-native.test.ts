@@ -1070,6 +1070,7 @@ describe("native Stop and follow-up handoff", () => {
     await withSessionFetch((request) => {
       const path = new URL(request.url).pathname;
       if (path.endsWith(`/session/${root.id}`)) return Response.json(root);
+      if (request.method === "GET" && path.endsWith("/command")) return Response.json([]);
       if (path.endsWith("/command")) return Response.json({ accepted: true });
       if (path.endsWith("/message")) return Response.json(terminal
         ? turnMessages(root.id, [], messageID).map(message => message.info.role === "assistant" ? {
@@ -1091,7 +1092,7 @@ describe("native Stop and follow-up handoff", () => {
       await interruptSessionTurn(baseUrl, client, root.id, root.directory, { timeoutMs: 1_000 });
       expect(sessionHasPendingSubmission(baseUrl, root.id)).toBe(false);
       expect(sessionNeedsStop(baseUrl, root.id)).toBe(false);
-      expect(requests.filter(request => new URL(request.url).pathname.endsWith("/command"))).toHaveLength(1);
+      expect(requests.filter(request => request.method === "POST" && new URL(request.url).pathname.endsWith("/command"))).toHaveLength(1);
     });
   });
 
@@ -1129,6 +1130,7 @@ describe("native Stop and follow-up handoff", () => {
       const path = new URL(request.url).pathname;
       if (path.endsWith(`/session/${root.id}`)) return Response.json(root);
       if (path.endsWith(`/session/${child.id}`)) return Response.json(child);
+      if (request.method === "GET" && path.endsWith("/command")) return Response.json([]);
       if (path.endsWith("/command")) { events.push("command-accepted"); return Response.json({ accepted: true }); }
       if (path.endsWith(`/session/${child.id}/message`)) return Response.json(turnMessages(child.id));
       if (path.endsWith(`/session/${root.id}/message`)) {
